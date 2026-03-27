@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx --version)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:gist.github.com)",
+      "Bash(gh gist:*)",
+      "Bash(curl -sL \"https://gist.githubusercontent.com/20eg112151/b5a41af9935d50d291a0e6200482e397/raw\")",
+      "WebFetch(domain:web.whatsapp.com)"
+    ]
+  }
+}
