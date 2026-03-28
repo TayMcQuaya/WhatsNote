@@ -120,6 +120,40 @@ ipcMain.handle('shell:open-external', (_e, url) => {
   }
 });
 
+ipcMain.handle('data:export', async () => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export WhatsNote Data',
+    defaultPath: `whatsnote-backup-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (result.canceled || !result.filePath) return false;
+
+  const data = loadData();
+  fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf-8');
+  return true;
+});
+
+ipcMain.handle('data:import', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import WhatsNote Data',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+
+  try {
+    const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
+    const imported = JSON.parse(raw);
+    if (!imported.projects || !Array.isArray(imported.projects)) {
+      return null;
+    }
+    saveData(imported);
+    return imported;
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle('dialog:pick-image', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Choose project avatar',

@@ -287,12 +287,24 @@ body {
   color: var(--text-primary);
 }
 
+.footer-action {
+  padding: 4px;
+}
+
+.footer-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+}
+
 /* ===== Chat Area ===== */
 #chat-area {
   display: flex;
   flex-direction: column;
   position: relative;
   background: var(--chat-bg);
+  overflow: hidden;
+  min-height: 0;
 }
 
 /* Chat background pattern */
@@ -339,6 +351,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   z-index: 1;
 }
 

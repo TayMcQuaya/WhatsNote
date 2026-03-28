@@ -594,6 +594,27 @@
   themeToggle.addEventListener('click', toggleTheme);
   newProjectBtn.addEventListener('click', createProject);
 
+  $('#export-btn').addEventListener('click', async () => {
+    await window.api.exportData();
+  });
+
+  $('#import-btn').addEventListener('click', async () => {
+    const confirmed = await showConfirm(
+      'Import data?',
+      'This will replace all your current projects and tasks.',
+      'Import'
+    );
+    if (!confirmed) return;
+
+    const imported = await window.api.importData();
+    if (imported) {
+      data = imported;
+      activeProjectId = null;
+      renderSidebar();
+      renderChat();
+    }
+  });
+
   starredBtn.addEventListener('click', () => {
     showingStarred = !showingStarred;
     starredBtn.classList.toggle('active', showingStarred);
