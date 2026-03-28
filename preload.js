@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('api', {
   importData: () => ipcRenderer.invoke('data:import'),
   showMessageMenu: (info) => ipcRenderer.invoke('context-menu:message', info),
   showProjectMenu: (info) => ipcRenderer.invoke('context-menu:project', info),
+  showMultiProjectMenu: (info) => ipcRenderer.invoke('context-menu:multi-project', info),
+  showMultiMessageMenu: (info) => ipcRenderer.invoke('context-menu:multi-message', info),
   pickImage: () => ipcRenderer.invoke('dialog:pick-image'),
   openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
 });

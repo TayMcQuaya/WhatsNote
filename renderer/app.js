@@ -18,6 +18,10 @@
   const newProjectBtn = $('#new-project-btn');
   const starredBtn = $('#starred-btn');
   let showingStarred = false;
+  let selectedProjectIds = new Set();
+  let lastClickedProjectId = null;
+  let selectedMessageIds = new Set();
+  let lastClickedMessageId = null;
 
   // ===== Data helpers =====
   function genId() {
@@ -89,7 +93,9 @@
       const unchecked = project.messages.filter((m) => !m.checked && !containsUrl(m.text)).length;
 
       const el = document.createElement('div');
-      el.className = 'project-item' + (project.id === activeProjectId ? ' selected' : '');
+      el.className = 'project-item'
+        + (project.id === activeProjectId ? ' selected' : '')
+        + (selectedProjectIds.has(project.id) ? ' multi-selected' : '');
       el.dataset.id = project.id;
 
       const avatarContent = project.avatar
@@ -115,10 +121,50 @@
         showInfoPanel(project.id);
       });
 
-      el.addEventListener('click', () => selectProject(project.id));
+      el.addEventListener('click', (e) => {
+        if (e.shiftKey) {
+          e.preventDefault();
+          if (lastClickedProjectId && lastClickedProjectId !== project.id) {
+            const ids = filtered.map((p) => p.id);
+            const fromIdx = ids.indexOf(lastClickedProjectId);
+            const toIdx = ids.indexOf(project.id);
+            const start = Math.min(fromIdx, toIdx);
+            const end = Math.max(fromIdx, toIdx);
+            for (let i = start; i <= end; i++) {
+              selectedProjectIds.add(ids[i]);
+            }
+          } else {
+            if (selectedProjectIds.has(project.id)) {
+              selectedProjectIds.delete(project.id);
+            } else {
+              selectedProjectIds.add(project.id);
+            }
+          }
+          lastClickedProjectId = project.id;
+          renderSidebar();
+        } else if (e.ctrlKey) {
+          e.preventDefault();
+          if (selectedProjectIds.has(project.id)) {
+            selectedProjectIds.delete(project.id);
+          } else {
+            selectedProjectIds.add(project.id);
+          }
+          lastClickedProjectId = project.id;
+          renderSidebar();
+        } else {
+          selectedProjectIds.clear();
+          lastClickedProjectId = project.id;
+          selectProject(project.id);
+        }
+      });
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        handleProjectContextMenu(project.id);
+        if (selectedProjectIds.size > 1 && selectedProjectIds.has(project.id)) {
+          handleMultiProjectContextMenu();
+        } else {
+          selectedProjectIds.clear();
+          handleProjectContextMenu(project.id);
+        }
       });
       el.addEventListener('dblclick', () => startInlineRename(project.id));
 
@@ -168,7 +214,10 @@
 
       const bubble = document.createElement('div');
       const isLink = containsUrl(msg.text);
-      bubble.className = 'message-bubble' + (isLink ? ' link-bubble' : '') + (msg.starred ? ' starred' : '');
+      bubble.className = 'message-bubble'
+        + (isLink ? ' link-bubble' : '')
+        + (msg.starred ? ' starred' : '')
+        + (selectedMessageIds.has(msg.id) ? ' multi-selected' : '');
       bubble.dataset.id = msg.id;
 
       if (isLink) {
@@ -203,13 +252,57 @@
         `;
 
         bubble.addEventListener('click', (e) => {
-          if (e.button === 0) toggleMessage(project.id, msg.id);
+          if (e.button !== 0) return;
+          if (e.shiftKey) {
+            e.preventDefault();
+            const msgIds = project.messages.map((m) => m.id);
+            if (lastClickedMessageId && lastClickedMessageId !== msg.id) {
+              const fromIdx = msgIds.indexOf(lastClickedMessageId);
+              const toIdx = msgIds.indexOf(msg.id);
+              const start = Math.min(fromIdx, toIdx);
+              const end = Math.max(fromIdx, toIdx);
+              for (let i = start; i <= end; i++) {
+                selectedMessageIds.add(msgIds[i]);
+              }
+            } else {
+              if (selectedMessageIds.has(msg.id)) {
+                selectedMessageIds.delete(msg.id);
+              } else {
+                selectedMessageIds.add(msg.id);
+              }
+            }
+            lastClickedMessageId = msg.id;
+            updateMessageSelectionUI();
+          } else if (e.ctrlKey) {
+            e.preventDefault();
+            if (selectedMessageIds.has(msg.id)) {
+              selectedMessageIds.delete(msg.id);
+            } else {
+              selectedMessageIds.add(msg.id);
+            }
+            lastClickedMessageId = msg.id;
+            updateMessageSelectionUI();
+          } else {
+            if (selectedMessageIds.size > 0) {
+              selectedMessageIds.clear();
+              updateMessageSelectionUI();
+            } else {
+              toggleMessage(project.id, msg.id);
+            }
+            lastClickedMessageId = msg.id;
+          }
         });
       }
 
       bubble.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        handleMessageContextMenu(project.id, msg.id);
+        if (selectedMessageIds.size > 1 && selectedMessageIds.has(msg.id)) {
+          handleMultiMessageContextMenu(project.id);
+        } else {
+          selectedMessageIds.clear();
+          updateMessageSelectionUI();
+          handleMessageContextMenu(project.id, msg.id);
+        }
       });
 
       messagesEl.appendChild(bubble);
@@ -224,6 +317,8 @@
   function selectProject(id) {
     activeProjectId = id;
     showingStarred = false;
+    selectedMessageIds.clear();
+    lastClickedMessageId = null;
     starredBtn.classList.remove('active');
     renderSidebar();
     renderChat();
@@ -257,9 +352,21 @@
     msg.checked = !msg.checked;
     project.updatedAt = new Date().toISOString();
 
+    // Update bubble in-place instead of full re-render
+    const bubble = messagesEl.querySelector(`[data-id="${messageId}"]`);
+    if (bubble) {
+      const checkbox = bubble.querySelector('input[type="checkbox"]');
+      const textEl = bubble.querySelector('.message-text');
+      if (checkbox) checkbox.checked = msg.checked;
+      if (textEl) textEl.classList.toggle('checked', msg.checked);
+    }
+
+    const total = project.messages.length;
+    const done = project.messages.filter((m) => m.checked).length;
+    chatCountEl.textContent = total > 0 ? `${done}/${total} done` : '';
+
     await save();
     renderSidebar();
-    renderChat();
   }
 
   async function deleteMessage(projectId, messageId) {
@@ -359,6 +466,35 @@
     });
   }
 
+  function updateMessageSelectionUI() {
+    messagesEl.querySelectorAll('.message-bubble').forEach((bubble) => {
+      bubble.classList.toggle('multi-selected', selectedMessageIds.has(bubble.dataset.id));
+    });
+  }
+
+  async function handleMultiMessageContextMenu(projectId) {
+    const count = selectedMessageIds.size;
+    const result = await window.api.showMultiMessageMenu({ count });
+    if (!result) return;
+
+    if (result.action === 'delete') {
+      const confirmed = await showConfirm(
+        `Delete ${count} messages?`,
+        'These messages will be permanently deleted.'
+      );
+      if (confirmed) {
+        const project = getProject(projectId);
+        if (!project) return;
+        project.messages = project.messages.filter((m) => !selectedMessageIds.has(m.id));
+        project.updatedAt = new Date().toISOString();
+        selectedMessageIds.clear();
+        await save();
+        renderSidebar();
+        renderChat();
+      }
+    }
+  }
+
   // ===== Context Menus =====
   async function handleMessageContextMenu(projectId, messageId) {
     const project = getProject(projectId);
@@ -411,6 +547,27 @@
         'All tasks and messages will be permanently deleted.'
       );
       if (confirmed) await deleteProject(projectId);
+    }
+  }
+
+  async function handleMultiProjectContextMenu() {
+    const count = selectedProjectIds.size;
+    const result = await window.api.showMultiProjectMenu({ count });
+    if (!result) return;
+
+    if (result.action === 'delete') {
+      const confirmed = await showConfirm(
+        `Delete ${count} projects?`,
+        'All tasks and messages in these projects will be permanently deleted.'
+      );
+      if (confirmed) {
+        data.projects = data.projects.filter((p) => !selectedProjectIds.has(p.id));
+        if (selectedProjectIds.has(activeProjectId)) activeProjectId = null;
+        selectedProjectIds.clear();
+        await save();
+        renderSidebar();
+        renderChat();
+      }
     }
   }
 
@@ -474,8 +631,18 @@
   infoBackdrop.addEventListener('click', hideInfoPanel);
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !infoOverlay.classList.contains('hidden')) {
-      hideInfoPanel();
+    if (e.key === 'Escape') {
+      if (selectedMessageIds.size > 0) {
+        selectedMessageIds.clear();
+        updateMessageSelectionUI();
+      }
+      if (selectedProjectIds.size > 0) {
+        selectedProjectIds.clear();
+        renderSidebar();
+      }
+      if (!infoOverlay.classList.contains('hidden')) {
+        hideInfoPanel();
+      }
     }
   });
 
@@ -583,7 +750,7 @@
 
   messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
-    messageInput.style.height = messageInput.scrollHeight + 'px';
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
   });
 
   document.querySelectorAll('.footer-link').forEach((link) => {

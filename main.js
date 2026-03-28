@@ -114,6 +114,36 @@ ipcMain.handle('context-menu:project', (_e, { projectId, pinned }) => {
   });
 });
 
+ipcMain.handle('context-menu:multi-message', (_e, { count }) => {
+  return new Promise((resolve) => {
+    const menu = Menu.buildFromTemplate([
+      {
+        label: `Delete ${count} Messages`,
+        click: () => resolve({ action: 'delete' }),
+      },
+      { type: 'separator' },
+      { label: 'Cancel', click: () => resolve(null) },
+    ]);
+    menu.popup({ window: mainWindow });
+    menu.on('menu-will-close', () => setTimeout(() => resolve(null), 100));
+  });
+});
+
+ipcMain.handle('context-menu:multi-project', (_e, { count }) => {
+  return new Promise((resolve) => {
+    const menu = Menu.buildFromTemplate([
+      {
+        label: `Delete ${count} Projects`,
+        click: () => resolve({ action: 'delete' }),
+      },
+      { type: 'separator' },
+      { label: 'Cancel', click: () => resolve(null) },
+    ]);
+    menu.popup({ window: mainWindow });
+    menu.on('menu-will-close', () => setTimeout(() => resolve(null), 100));
+  });
+});
+
 ipcMain.handle('shell:open-external', (_e, url) => {
   if (typeof url === 'string' && /^https?:\/\//.test(url)) {
     shell.openExternal(url);
